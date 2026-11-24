@@ -12,6 +12,20 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Clos Wheeks">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Le Clos des Wheeks">
+<meta property="og:title" content="Le Clos des Wheeks">
+<meta property="og:description" content="Un refuge de campagne pour cochons d’Inde, en pixel art : on s’occupe d’eux, on apprend à les connaître, sans pression.">
+<meta property="og:url" content="https://r0shinante.github.io/clos-des-wheeks/">
+<meta property="og:image" content="https://r0shinante.github.io/clos-des-wheeks/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Le panneau du refuge « Le Clos des Wheeks » à côté d’un pré où des cochons d’Inde se promènent.">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Le Clos des Wheeks">
+<meta name="twitter:description" content="Un refuge de campagne pour cochons d’Inde, en pixel art. Rien ne presse ici.">
+<meta name="twitter:image" content="https://r0shinante.github.io/clos-des-wheeks/preview.png">
 <title>Le Clos des Wheeks</title>
 <style>
 html,body{margin:0;height:100%;background:#241c2e;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
@@ -33,7 +47,7 @@ noscript{position:fixed;inset:0;display:flex;align-items:center;justify-content:
    - Mode calme : plus de scintillement ni de flash (particules qui s'éteignent d'un coup, étincelles, lucioles, papillons,
      coins de la pose, flash de l'appareil, bandeaux), moitié moins de pétales, sons un peu plus doux, oiseaux plus rares.
    - Contraste fort : ne change aucun dessin, seulement la couleur des textes, choisie pour tenir au moins 7:1 sur le fond réel.
-   - Messages longs : les bandeaux restent deux fois plus longtemps.
+   - Messages longs : les bandeaux, les petits messages et l'écran de changement de journée restent deux fois plus longtemps.
    - Volume (doux / normal / fort) et bruits de fond (oiseaux, grillons, vent) : voir 07_audio.js. */
 const Access = {
   K: 'clos-wheeks-confort',
@@ -65,7 +79,12 @@ const Access = {
     if (typeof AUD !== 'undefined') { AUD.setOn(AUD.on); AUD.setAmb(); }
   },
   gain() { return this.VOLS[this.vol].g * (this.calm ? 0.8 : 1); }, // gain maître avant le compresseur
-  toastSec() { return this.slow ? 9.2 : 4.6; },
+  // durées de lecture : elles suivent la longueur du texte (≈ 18 caractères par seconde, plus un temps pour repérer le message) ; « messages longs » : le double
+  readSec(n) { const s = Math.min(12, Math.max(4.6, 2.6 + n * 0.055)); return this.slow ? s * 2 : s; },   // un bandeau de n caractères : 4,6 à 12 s
+  toastSec(n) { return this.readSec(n == null ? 0 : n); },
+  briefSec(n) { const s = Math.max(2.6, 1.6 + n * 0.06); return this.slow ? s * 2 : s; },               // un message d'une ligne sous un panneau
+  holdSec(n) { const s = Math.min(5, Math.max(3, 2.2 + n * 0.02)); return this.slow ? s * 1.8 : s; },    // l'écran « Jour N » du changement de journée
+
 
   // ----- contraste fort : couleur de texte choisie d'après le fond réellement dessous -----
   tables() {
@@ -533,8 +552,8 @@ const QUIRKS = {
   fredonne:   'fredonne en mangeant',
   orteils:    'compte ses orteils avant de dormir'
 };
-// Manies déjà animées dans le jeu : seules celles-ci sont distribuées (les autres arriveront avec les étapes suivantes).
-const QUIRK_LIVE = ['tourne3', 'popcorn2', 'salue', 'tas', 'mordille', 'papillon', 'crabe', 'fredonne', 'jardinier'];
+// Manies distribuées aux cochons : toutes sont désormais animées dans le jeu.
+const QUIRK_LIVE = Object.keys(QUIRKS);
 
 const VEG = ['poivron', 'concombre', 'persil', 'coriandre', 'laitue', 'fenouil', 'céleri', 'courgette', 'basilic', 'pissenlit', 'carotte', 'brocoli', 'endive'];
 
@@ -674,7 +693,7 @@ function crossOdds(A, B, g) {
 /* ---- 04_pigsprite.js ---- */
 /* ==== 04 · cochons d'Inde : silhouettes lissées, relief calculé, pelage, motif, visage ==== */
 const AGE_K = { bebe: 0.62, jeune: 0.82, adulte: 1, senior: 1 };
-const ZP = { FARLEG: 1, BODY: 2, NEARLEG: 3, SKIRT: 4, HEAD: 5, EAR: 6, FRINGE: 7, CREST: 8 };
+const ZP = { FARLEG: 1, BODY: 2, NEARLEG: 3, SKIRT: 4, HEAD: 5, FRINGE: 6, EAR: 7, CREST: 8 }; // l'oreille passe devant la frange : elle dépasse des poils
 const SPR_W = 34, SPR_H = 25, SPR_AX = 14, SPR_GY = 22;
 // Repères pour les autres modules (adulte tourné vers la droite, distances depuis le point au sol)
 
@@ -769,8 +788,19 @@ const BODY0 = sqz([[4.0, 18.6], [2.4, 14.8], [3.4, 10.6], [6.4, 7.4], [10.6, 5.8
 const BODY_SLEEP = [[4.0, 20.6], [2.4, 18.0], [2.8, 14.8], [5.6, 12.0], [10.0, 10.4], [15.0, 10.0], [19.6, 10.8], [23.0, 12.8], [24.6, 15.8], [24.4, 19.2], [21.6, 21.6], [14.0, 22.0], [8.0, 21.9]];
 const HEAD0 = [[19.6, 12.0], [21.6, 9.2], [25.0, 7.8], [28.6, 8.6], [31.2, 11.0], [32.9, 14.0], [33.5, 17.0], [32.6, 19.6], [28.8, 21.0], [24.4, 20.8], [21.2, 18.6], [19.6, 15.4]];
 const EAR0 = [[19.8, 10.4], [21.8, 8.4], [24.6, 8.8], [25.6, 11.4], [24.0, 13.8], [21.0, 13.4]];
-const SKIRT0 = [[1.0, 21.6], [1.0, 16.4], [3.0, 12.8], [8.0, 12.0], [15.0, 12.4], [21.0, 13.6], [23.4, 16.6], [23.8, 20.6], [21.6, 22.4], [17.5, 21.2], [14.0, 22.6], [10.0, 21.4], [6.4, 22.6], [3.4, 21.6]];
-const FRINGE0 = [[21.6, 9.4], [25.4, 7.6], [29.6, 9.4], [31.8, 12.6], [29.4, 12.6], [27.4, 15.4], [25.4, 13.0], [22.4, 12.8]];
+function splineOpen(pts, n) { // Catmull-Rom ouverte : une courbe, pas un polygone
+  const a = [pts[0]].concat(pts, [pts[pts.length - 1]]), out = [];
+  for (let i = 1; i < a.length - 2; i++) {
+    const p0 = a[i - 1], p1 = a[i], p2 = a[i + 1], p3 = a[i + 2];
+    for (let s = 0; s < n; s++) { const t = s / n, t2 = t * t, t3 = t2 * t;
+      out.push([0.5 * (2 * p1[0] + (p2[0] - p0[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (3 * p1[0] - p0[0] - 3 * p2[0] + p3[0]) * t3),
+        0.5 * (2 * p1[1] + (p2[1] - p0[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (3 * p1[1] - p0[1] - 3 * p2[1] + p3[1]) * t3)]); }
+  }
+  out.push(pts[pts.length - 1]); return out;
+}
+// péruvien : tout le dos disparaît sous les poils ; le dessus suit la courbe du dos (un peu plus rond derrière), le bas finit en mèches inégales
+const SKIRT0 = splineOpen([[2.6, 14.4], [3.4, 10.6], [5.8, 7.8], [9.0, 5.9], [12.8, 5.1], [16.6, 5.3], [20.2, 6.7], [22.8, 9.6], [24.2, 13.2]], 5).concat([[24.7, 17.6], [24.0, 21.0], [22.6, 23.0], [21.6, 20.8], [20.0, 23.8], [18.4, 21.0], [16.8, 24.0], [15.0, 21.0], [13.4, 23.8], [11.6, 21.2], [9.8, 24.0], [8.0, 21.0], [6.2, 23.6], [4.4, 21.4], [2.8, 23.8], [1.4, 21.8], [0.7, 23.0], [0.6, 18.2]]);
+const FRINGE0 = [[20.6, 11.0], [22.0, 8.0], [25.0, 6.6], [28.6, 7.2], [31.4, 9.4], [33.2, 12.2], [32.2, 14.8], [31.0, 12.8], [30.0, 15.6], [28.8, 13.2], [27.6, 15.4], [26.2, 12.8], [24.6, 14.8], [22.8, 12.4], [21.4, 13.8]];
 const CREST0 = ellPts(25.8, 8.2, 2.6, 2.0, 10);
 const ANCH0 = { eye: [27.2, 12.8], nose: [31.8, 15.8], mouth: [30.2, 19.0], whisk: [32.8, 16.8] };
 
@@ -797,6 +827,29 @@ function buildGeom(pose, f, phen, o) {
       body = BODY_SLEEP; legs = false; eye = 'closed';
       bt = TF({ px: 14, py: 22, sy: 1 + (f & 1) * 0.04 });
       ht = TF({ px: 22.4, py: 13.6, dx: -0.2, dy: 2.0, rot: 0.1 }); et = TF({ px: 22.6, py: 10.6, dy: 0.8, rot: 0.25 });
+      if (f >= 2) eye = 'open'; // un œil qui guette : celui qui fait semblant de dormir
+      break;
+    }
+    case 'back': { // sur le dos, pattes en l'air : le museau regarde le ciel, les pattes tremblent un peu
+      body = BODY_SLEEP; eye = 'closed';
+      bt = TF({ px: 14, py: 22, sy: 1 + (f & 1) * 0.04 });
+      ht = TF({ px: 22.4, py: 13.6, dx: -0.6, dy: 3.2, rot: -0.42 }); et = TF({ px: 22.6, py: 10.6, dy: 1.6, rot: 0.3 });
+      const tw = (f & 1) ? 0.7 : 0;
+      lg.hF = { cx: 11.8 + tw, cy: 7.6, rx: 1.9, ry: 3.0, rot: 0.2 }; lg.fF = { cx: 21.8 - tw, cy: 7.8, rx: 1.8, ry: 2.9, rot: -0.18 };
+      lg.hN = { cx: 6.8 - tw, cy: 8.0, rx: 2.1, ry: 3.1, rot: -0.18 }; lg.fN = { cx: 16.8 + tw, cy: 7.6, rx: 2.0, ry: 3.0, rot: 0.18 };
+      break;
+    }
+    case 'chin': { // le menton posé sur ce qui dépasse : tête basse, yeux plissés, joue rosie
+      bt = TF({ px: 14, py: 22, sy: 1 + (f & 1) * 0.03 });
+      ht = TF({ px: 22.4, py: 13.6, rot: 0.1, dy: 2.0, dx: 0.7 }); et = TF({ px: 22.6, py: 10.6, dy: 0.9, rot: 0.2 });
+      eye = 'happy'; blush = true;
+      break;
+    }
+    case 'startle': { // sursaut : tout rond, pattes repliées, yeux écarquillés
+      bt = TF({ px: 14, py: 14, rot: -0.1, dy: -0.4 }); ht = TF({ px: 22.4, py: 13.6, rot: -0.12, dy: -1.4 }); et = TF({ px: 22.6, py: 10.6, rot: -0.4, dy: -1.6 });
+      for (const k in lg) { lg[k].cy = 18.6; lg[k].ry = 1.3; }
+      lg.fN.cx = 20.4; lg.fF.cx = 23.2; lg.hN.cx = 7.4; lg.hF.cx = 11.4;
+      mouth = 1;
       break;
     }
     case 'popcorn': {
@@ -839,15 +892,20 @@ function buildGeom(pose, f, phen, o) {
   const A = {}; for (const k in ANCH0) A[k] = xfPt(ANCH0[k], ht);
   const parts = [];
   const add = (n, z, grp, pts, R, smooth) => parts.push({ n: n, z: z, grp: grp, pts: pts, R: R, smooth: smooth !== false });
-  const lp = (l, z, n) => add(n, z, 'body', ellPts(l.cx, l.cy, l.rx, l.ry, 12), 1.7, false);
+  const lp = (l, z, n) => add(n, z, 'body', l.rot ? ellPts(l.cx, l.cy, l.rx, l.ry, 12).map(q => { const dx = q[0] - l.cx, dy = q[1] - l.cy, c = Math.cos(l.rot), sn = Math.sin(l.rot); return [l.cx + dx * c - dy * sn, l.cy + dx * sn + dy * c]; }) : ellPts(l.cx, l.cy, l.rx, l.ry, 12), 1.7, false);
   const bodyPts = xfPts(body, bt);
   if (legs) { lp(lg.hF, ZP.FARLEG, 'hF'); lp(lg.fF, ZP.FARLEG, 'fF'); }
   add('body', ZP.BODY, 'body', bodyPts, 5.6);
   if (legs) { lp(lg.hN, ZP.NEARLEG, 'hN'); lp(lg.fN, ZP.NEARLEG, 'fN'); }
-  if (poil === 'peruvien') add('skirt', ZP.SKIRT, 'body', xfPts(SKIRT0, pose === 'sleep' ? TF({ py: 22, sy: 0.85, dy: 0 }) : bt), 3.4);
+  if (poil === 'peruvien') {
+    const sk = xfPts(SKIRT0, (pose === 'sleep' || pose === 'back') ? TF({ py: 22, sy: 0.73, dy: 0.1 }) : bt);
+    if (pose === 'walk') sk.forEach((q, i) => { if (q[1] > 20.5) q[0] += (((i + f) & 1) ? 0.9 : -0.9); }); // le bas des poils ondule à chaque pas
+    add('skirt', ZP.SKIRT, 'body', sk, 3.4, false);
+  }
   add('head', ZP.HEAD, 'head', xfPts(HEAD0, ht), 4.8);
+  if (o.cheek) add('cheek', ZP.HEAD, 'head', xfPts(ellPts(26.6, 18.6, 4.2, 3.0, 12), ht), 3.0); // joues pleines de foin
   add('ear', ZP.EAR, 'ear', earPts, 2.3);
-  if (poil === 'peruvien') add('fringe', ZP.FRINGE, 'head', xfPts(FRINGE0, ht), 2.4);
+  if (poil === 'peruvien') add('fringe', ZP.FRINGE, 'head', xfPts(FRINGE0, ht), 2.4, false);
   if (poil === 'crete') add('crest', ZP.CREST, 'head', xfPts(CREST0, ht), 1.8);
   return { parts: parts, A: A, eye: eye, mouth: mouth, blush: blush, poil: poil, ht: ht };
 }
@@ -939,8 +997,8 @@ function renderPig(pig, o) {
   const spec = patternSpec(pig, phen);
   const pose = o.pose || 'stand', f = o.f || 0;
   const k = o.k || AGE_K[pig.age || 'adulte'] || 1;
-  const fl = o.fl || 0;                       // 1 : clin d'œil, 2 : oreille qui bouge, 4 : nez qui frémit
-  const geo = buildGeom(pose, f, phen, { flick: !!(fl & 2), baby: k < 0.9 && !o.adult });
+  const fl = o.fl || 0;                       // 1 : clin d'œil, 2 : oreille qui bouge, 4 : nez qui frémit, 8 : joues pleines, 16 : brin de foin dans la bouche
+  const geo = buildGeom(pose, f, phen, { flick: !!(fl & 2), cheek: !!(fl & 8), baby: k < 0.9 && !o.adult });
   const W = Math.ceil(SPR_W * k), H = Math.ceil(SPR_H * k);
   const zg = new Uint8Array(W * H), pg = new Int8Array(W * H).fill(-1);
   const parts = geo.parts.map(p => {
@@ -1010,6 +1068,7 @@ function renderPig(pig, o) {
   const L = [-0.52, -0.85];
   const setC = (i, ci) => { const c = PAL_RGB[ci]; rgba[i * 4] = c[0]; rgba[i * 4 + 1] = c[1]; rgba[i * 4 + 2] = c[2]; rgba[i * 4 + 3] = 255; };
   const tones = new Uint8Array(W * H), keys = new Array(W * H);
+  if (geo.poil === 'peruvien') parts.forEach(q => { if (q.n === 'skirt') { q.top = new Int16Array(W).fill(9999); for (let y = H - 1; y >= 0; y--) for (let x = 0; x < W; x++) if (q.mask[y * W + x]) q.top[x] = y; } });
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x; if (!zg[i]) continue;
     const p = parts[pg[i]];
@@ -1021,7 +1080,7 @@ function renderPig(pig, o) {
     if (useSkin && key === 'peau' && (spec.main === 'roux' || spec.main === 'creme') && valueNoise(x, y, 4.2, spec.seed + 31) > 0.60) key = spec.main; // peau marbrée de pigment
     keys[i] = key;
     if (edge[i] === 1) { tones[i] = lit[i] ? 1 : 0; continue; }
-    if (edge[i] === 2) { tones[i] = (p.n === 'head' || p.n === 'fringe') ? 1 : 0; if (p.n === 'head' && y < rf.cy) tones[i] = 2; continue; }
+    if (edge[i] === 2) { tones[i] = (p.n === 'head' || p.n === 'fringe' || p.n === 'skirt') ? 1 : 0; if (p.n === 'head' && y < rf.cy) tones[i] = 2; continue; }
     // lumière : rebord éclairé en haut à gauche, rebord dans l'ombre en bas à droite, ventre plus sombre
     const h = (xx, yy) => (xx < 0 || yy < 0 || xx >= W || yy >= H) ? 0 : p.hm[yy * W + xx];
     const gx = (h(x + 1, y) - h(x - 1, y)) * 0.5, gy = (h(x, y + 1) - h(x, y - 1)) * 0.5, mag = Math.hypot(gx, gy);
@@ -1034,8 +1093,14 @@ function renderPig(pig, o) {
       case 'hN': case 'fN': tone = ny01 > 0.45 ? 1 : 2; break;
       case 'hF': case 'fF': tone = 1; break;
       case 'ear': tone = v > 0.32 ? 3 : v < -0.30 ? 1 : 2; break;
-      case 'skirt': tone = (hash2(x, 3, spec.seed) < 0.30 || ny01 > 0.72) ? 1 : (v > 0.35 ? 3 : 2); break;
-      case 'fringe': tone = hash2(x, 5, spec.seed) < 0.34 ? 1 : (ny01 < 0.35 ? 3 : 2); break;
+      case 'skirt': { // longues mèches : des lignes obliques qui tombent vers le bas et vers l'arrière, sombres entre deux mèches claires
+        const sd = Math.floor(x + (y - p.y0) * (0.2 + 0.55 * clamp((22 - x) / 22, 0, 1))), hs = hash2(sd, 3, spec.seed);
+        tone = hs < 0.30 ? 1 : (hs > 0.86 || (hs > 0.62 && v > 0.32)) ? 3 : 2;
+        if (hash2(x, y, spec.seed + 8) < 0.16) tone = tone === 2 ? (hs < 0.5 ? 1 : 3) : 2; // quelques pixels qui sortent du rang : on ne voit plus une rayure, on voit des poils
+        if (ny01 > 0.84 && hash2(x, y, spec.seed + 4) < 0.5) tone = 1; // le bout des mèches, dans l'ombre
+        break;
+      }
+      case 'fringe': { const sd = Math.floor(x - 0.4 * (y - p.y0)); tone = (((sd % 3) + 3) % 3 === 0 || hash2(sd, 5, spec.seed) < 0.18) ? 1 : (ny01 < 0.4 ? 3 : 2); break; }
       case 'crest': tone = ny01 < 0.5 ? 3 : 2; break;
       default: tone = v > 0.36 ? 3 : v < -0.20 ? 1 : 2;
     }
@@ -1043,7 +1108,9 @@ function renderPig(pig, o) {
     if (phen.motif === 'agouti') { const hh = hash2(lx, ly, spec.seed + 21); if (hh < 0.22) tone = Math.max(1, tone - 1); else if (hh < 0.36) tone = Math.min(3, tone + 1); }
     if (geo.poil === 'teddy') { const nn = valueNoise(x, y, 2.4, spec.seed); if (nn > 0.70) tone = Math.min(3, tone + 1); else if (nn < 0.28) tone = Math.max(1, tone - 1); }
     if (geo.poil === 'skinny') { if (tone === 3) tone = 2; }
+    if (geo.poil === 'peruvien' && p.n === 'skirt' && p.top && y === p.top[x] + 2 && u > -0.75 && u < 0.7) tone = 3; // la raie du dos : une ligne claire d'où les poils tombent des deux côtés
     if (p.n === 'head' && u > 0.52 && vv > -0.15 && tone < 3 && !useSkin) tone++; // museau et bajoues un peu plus clairs
+    if (geo.poil === 'peruvien' && p.n === 'head' && at(x, y - 1) === ZP.FRINGE) tone = 1; // l'ombre de la frange sur le front
     if (key === 'creme' && tone === 1 && hash2(lx, ly, 9) < 0.5) tone = 2; // crème : ombres plus douces
     tones[i] = tone;
   }
@@ -1107,7 +1174,12 @@ function renderPig(pig, o) {
     const wp = (a, b, c) => px(wx + F[0] * a + Nn[0] * b, wy + F[1] * a + Nn[1] * b, c);
     wp(1.2, -1.2, 6); wp(2.4, -2.2, 5); wp(1.4, 0.9, 6); wp(2.6, 1.9, 5);
   }
-  if (pig.acc && big && ACC_DRAW[pig.acc]) { const sy = (pose === 'sleep' && pig.acc !== 'lunettes' && pig.acc !== 'foulard') ? 2 : 0; ACC_DRAW[pig.acc]((x, y, c) => px(x, y + sy, c), ex, ey); }
+  if ((fl & 16) && big) { // un brin de foin dépasse de la bouche, dans l'axe de la tête
+    const r = geo.ht.rot, F = [Math.cos(r), Math.sin(r)], Nn = [-Math.sin(r), Math.cos(r)];
+    const sp = (a, b, c) => px(mx + 1 + F[0] * a + Nn[0] * b, my + F[1] * a + Nn[1] * b, c);
+    sp(1, 0.5, 17); sp(1.8, 1.2, 29); sp(2.3, 2.2, 29); sp(2.6, 3.2, 27); sp(3.2, 4.0, 29); sp(0.6, 1.4, 17); sp(0.2, 2.4, 29); sp(-0.2, 3.3, 27);
+  }
+  if (pig.acc && big && ACC_DRAW[pig.acc]) { const sy = ((pose === 'sleep' || pose === 'back') && pig.acc !== 'lunettes' && pig.acc !== 'foulard') ? 2 : 0; ACC_DRAW[pig.acc]((x, y, c) => px(x, y + sy, c), ex, ey); }
   // toile finale
   const cv = mkCanvas(W, H), cx = ctx2(cv);
   const img = cx.createImageData(W, H); img.data.set(rgba); cx.putImageData(img, 0, 0);
@@ -1941,6 +2013,10 @@ const CHAR_W = {
 const CHAR_SPD = { timide: 17, curieux: 22, gourmand: 19, calin: 20, sportif: 30, bavard: 22 };
 const AGE_SPD = { bebe: 0.78, jeune: 0.95, adulte: 1, senior: 0.68 };   // les petits trottinent, les sages prennent leur temps
 const hasQ = (e, k) => e.pig.quirks.indexOf(k) >= 0;
+const NUDGE = { t: 0, dir: 1 };   // la gamelle qu'on pousse pour dire merci : glisse de 2 px puis revient
+function bowlDx() { return NUDGE.t > 0 ? Math.round(Math.sin(Math.PI * (1 - NUDGE.t / 0.5)) * 2) * NUDGE.dir : 0; }
+const tunnelDecos = () => ((GAME.state && GAME.state.deco) || []).filter(d => d.id === 'tunnel');
+const HAYC = [17, 29, 27, 16];       // couleurs du foin (miettes)
 
 function makeEnt(pig, x, y, face) {
   const ch = phenotype(pig).caractere, rng = mulberry32(hash32(pig.id) ^ (pig.seed | 0));
@@ -1970,6 +2046,11 @@ function entEnter(e, env) {
     case 'sniff': e.nt = 0.4; e.done.sniff = T; break;
     case 'nibble': e.done.fence = T; break;
     case 'turn3': e.flips = 0; break;
+    case 'count': e.cn = 0; e.done.count = T; break;
+    case 'chin': e.nt = 1.6; e.done.chin = T; break;
+    case 'shadow': e.done.shadow = T; e.sw = 0; e.sh2 = 0; break;
+    case 'tunnel': e.done.tunnel = T; break;
+    case 'fake': e.zt = 0.5; break;
     case 'sleep': e.zt = 0.6; e.done.rest = T; break;
     case 'popcorn': e.hopIdx = -1; e.done.popcorn = T; break;
     case 'corner': e.nt = 0.7; e.done.corner = T; break;
@@ -2010,6 +2091,9 @@ function entDecide(e, env) {
   if (q.indexOf('papillon') >= 0 && BFLY.list.length) w.look *= 2.4;
   if (q.indexOf('tas') >= 0 && otherEnts(e, env).some(o => o.st === 'sleep')) w.rest *= 4;
   if (q.indexOf('jardinier') >= 0) w.garden = 3 * clamp(since('garden') / 50, 0.1, 1);
+  if (q.indexOf('menton') >= 0) w.chin = 2.6 * clamp(since('chin') / 50, 0.1, 1);
+  if (q.indexOf('ombre') >= 0) w.shadow = 1.1 * clamp(since('shadow') / 60, 0.05, 1);
+  if (q.indexOf('tunnel') >= 0 && tunnelDecos().length) w.tunnel = 3 * clamp(since('tunnel') / 70, 0.1, 1);
   const pw = PHASE_W[GAME.state ? GAME.state.phase | 0 : 0] || {}; for (const k in pw) if (w[k] != null) w[k] *= pw[k]; // le soir, tout s'apaise
   if (w[e.lastAct]) w[e.lastAct] *= 0.3;
   const act = wpick(e.rng, w);
@@ -2020,7 +2104,7 @@ function entStart(e, env, act) {
   const W = env.world, others = otherEnts(e, env);
   switch (act) {
     case 'wander': { const p = randomFreePoint(W, e.rng, e, 28, 130); entGo(e, env, p.x, p.y, { st: 'idle', dur: 0.8 + e.rng() * 2.4 }); return true; }
-    case 'eat': { const s = pickSpot(e, env, W.spots.eat); if (!s) return false; e.spot = s; entGo(e, env, s.x, s.y, { st: 'eat', dur: 4.5 + e.rng() * 4, face: s.face, spot: s }); return true; }
+    case 'eat': { const s = pickSpot(e, env, W.spots.eat); if (!s) return false; e.spot = s; entGo(e, env, s.x, s.y, { st: 'eat', dur: 4.5 + e.rng() * 4, face: s.face, spot: s, calm: false, lastBite: false }); return true; }
     case 'garden': { const s = pickSpot(e, env, W.spots.garden); if (!s) return false; e.spot = s; entGo(e, env, s.x, s.y, { st: 'sniff', dur: 3.4 + e.rng() * 1.6, face: s.face, spot: s }); e.done.garden = env.time; return true; }
     case 'drink': { const s = pickSpot(e, env, W.spots.drink.concat(Deco.spots('drink'))); if (!s) return false; e.spot = s; entGo(e, env, s.x, s.y, { st: 'drink', dur: 3 + e.rng() * 2, face: s.face, spot: s }); return true; }
     case 'fence': { const s = pickSpot(e, env, W.spots.fence); if (!s) return false; e.spot = s; entGo(e, env, s.x, s.y, { st: 'nibble', dur: 3.6 + e.rng() * 2, face: s.face, spot: s }); return true; }
@@ -2029,7 +2113,7 @@ function entStart(e, env, act) {
       if (hasQ(e, 'tas')) { const o = others.find(z => z.st === 'sleep'); if (o) { s = { x: clamp(o.x + (o.x < 88 ? 22 : -22), 28, 148), y: o.y + 2, face: o.face }; if (navBlockedAt(W.nav, s.x, s.y)) s = null; } }
       if (!s) s = pickSpot(e, env, W.spots.rest.filter(s => !navBlockedAt(W.nav, s.x, s.y)).concat(W.spots.door, Deco.spots('nap')));
       if (!s) return false;
-      const sd = 9 + e.rng() * 9, next = hasQ(e, 'tourne3') ? { st: 'turn3', dur: 3, sleepDur: sd } : { st: 'sleep', dur: sd };
+      const sd = 9 + e.rng() * 9, next = hasQ(e, 'orteils') ? { st: 'count', dur: 3.1, sleepDur: sd } : hasQ(e, 'tourne3') ? { st: 'turn3', dur: 3, sleepDur: sd } : { st: 'sleep', dur: sd };
       e.spot = s; entGo(e, env, s.x, s.y, Object.assign({ face: s.face, spot: s }, next)); return true;
     }
     case 'sniff': {
@@ -2050,6 +2134,17 @@ function entStart(e, env, act) {
       if (b) { entSet(e, 'look', 2.4 + e.rng() * 2, { lookAt: { b: b } }); return true; }
       const o = others[0]; if (o && Math.hypot(o.x - e.x, o.y - e.y) < 90) { entSet(e, 'look', 1.6 + e.rng() * 1.6, { lookAt: { o: o } }); return true; }
       return false;
+    }
+    case 'chin': {
+      const s = pickSpot(e, env, W.spots.fence.concat(W.spots.eat)); if (!s) return false;
+      e.spot = s; entGo(e, env, s.x, s.y, { st: 'chin', dur: 4.6 + e.rng() * 2.4, face: s.face, spot: s }); return true;
+    }
+    case 'shadow': entSet(e, 'shadow', 3.5); entEnter(e, env); return true;
+    case 'tunnel': {
+      const ds = tunnelDecos(); if (!ds.length) return false;
+      const d = pick(e.rng, ds), ax = clamp(d.x + 25, 30, 146), bx = clamp(d.x - 25, 30, 146), ty = clamp(d.y, 84, 268);
+      if (ax < d.x + 21 || bx > d.x - 21) return false;
+      entGo(e, env, ax, ty, { st: 'tunnel', dur: 60, tn: { cx: d.x, ax: ax, bx: bx, y: ty }, ph: 0, face: -1 }); return true;
     }
     case 'greet': {
       const o = others.find(z => ['idle', 'walk', 'look'].indexOf(z.st) >= 0 && (z.st !== 'walk' || !z.then || z.then.st === 'idle'));
@@ -2078,12 +2173,25 @@ function entWalk(e, dt, env) {
   if (Math.abs(dx) > 0.6) { const nf = dx > 0 ? 1 : -1; e.face = e.crab > 0 ? -nf : nf; }
   if (e.crab > 0) { e.crabSeen += dt; if (e.crabSeen > 1.5) env.discover(e, 'crabe'); }
   e.ft += dt * e.spd * am / 2.6; e.pose = 'walk'; const pf = e.f; e.f = Math.floor(e.ft) & 3;
+  if (hasQ(e, 'ronron')) { // il ronronne en trottinant : un ronron doux, et un petit cœur de temps en temps
+    e.rw = (e.rw || 0) + dt; e.rn = (e.rn || 0) - dt;
+    if (e.rn <= 0) { e.rn = 1.5; e.rc = (e.rc | 0) + 1; if (env.playing) AUD.purr(e.pig, 1.1, 0.035, e.x); if (e.rc % 2) FX.heart(e.x - e.face * 2, e.y - 17); }
+    if (e.rw > 2.4) env.discover(e, 'ronron');
+  }
   if (env.playing && e.f !== pf && (e.f & 1) === 0) AUD.step(e.x, 0.7 + e.rng() * 0.5);
 }
 
+// fin d'un repas : le doudou de foin est adopté s'il y en a un, puis on repart
+function entEat(e, env) {
+  e.done.eat = env.time;
+  if (e.spot && e.spot.what === 'foin' && hasQ(e, 'doudou') && !(e.doudou > 0)) { e.doudou = 70 + e.rng() * 40; e.dTime = 0; FX.spark(e.x + e.face * 17, e.y - 8); }
+  entSet(e, 'idle', 0.8 + e.rng());
+}
 function entUpdate(e, dt, env) {
   e.t += dt; e.clock += dt; e.say -= dt; if (e.crab > 0) e.crab -= dt;
   const T = env.time;
+  if (e.st !== 'walk' && e.rw) e.rw = 0;
+  if (e.tn && e.st !== 'tunnel') { if (Math.abs(e.x - e.tn.cx) < 20) { e.x = e.tn.ax; e.y = e.tn.y; } e.tn = null; } // sorti du tunnel par autre chose (soin, caresse) : on ressort côté entrée
   switch (e.st) {
     case 'idle':
       e.pose = 'stand'; e.f = ((e.t / 1.15) | 0) & 1;
@@ -2098,7 +2206,8 @@ function entUpdate(e, dt, env) {
       break;
     }
     case 'sleep': {
-      e.pose = 'sleep'; e.f = ((e.t / 1.25) | 0) & 1;
+      e.pose = hasQ(e, 'dort_dos') ? 'back' : 'sleep'; e.f = ((e.t / 1.25) | 0) & 1;
+      if (e.pose === 'back' && e.t > 3) env.discover(e, 'dort_dos');
       e.zt -= dt; if (e.zt <= 0) { e.zt = 1.8; FX.zzz(e.x + e.face * 12, e.y - 14); }
       if (hasQ(e, 'tas')) { const o = otherEnts(e, env).find(z => z.st === 'sleep' && Math.hypot(z.x - e.x, z.y - e.y) < 26); if (o && e.t > 3) { env.discover(e, 'tas'); if (((e.t * 0.7) | 0) !== (((e.t - dt) * 0.7) | 0)) FX.heart(e.x, e.y - 14); } }
       if (e.t >= e.dur) { e.done.rest = T; entSet(e, 'wake', 1.0); }
@@ -2107,9 +2216,95 @@ function entUpdate(e, dt, env) {
     case 'wake': e.pose = 'curious'; e.f = 0; if (e.t >= e.dur) entSet(e, 'idle', 0.8 + e.rng()); break;
     case 'eat': {
       e.pose = 'eat'; const pf = e.f; e.f = ((e.t / 0.42) | 0) & 1;
+      const sw = e.spot && e.spot.what;
       if (e.f !== pf && e.f === 1) { AUD.munch(e.x); if (e.rng() < 0.6) FX.crumbs(e.x + e.face * 17, e.y - 3, 2, [11, 20, 28, 17]); }
       if (hasQ(e, 'fredonne')) { e.nt -= dt; if (e.nt <= 0) { e.nt = 1.3; FX.note(e.x + e.face * 4, e.y - 19); AUD.purr(e.pig, 0.9, 0.04, e.x); if (e.t > 2.4) env.discover(e, 'fredonne'); } }
-      if (e.t >= e.dur) { e.done.eat = T; entSet(e, 'idle', 0.8 + e.rng()); }
+      if (sw === 'gamelle' && hasQ(e, 'reflet') && !e.calm && e.t > 1.1) { // son reflet dans la gamelle : sursaut, recul, puis retour prudent
+        e.calm = true; entSet(e, 'startle', 1.8, { sx: e.x, back: -e.face * 9 }); FX.say(e.x + e.face * 6, e.y - 24, '!', 27); FX.puff(e.x, e.y); AUD.squeak(e.x); env.discover(e, 'reflet'); break;
+      }
+      if (sw === 'foin' && hasQ(e, 'joues') && !(e.cheek > 0) && e.t > e.dur * 0.55) e.cheek = 8; // le foin file dans les joues
+      if (e.t >= e.dur) {
+        if (sw === 'foin' && hasQ(e, 'dernier') && !e.lastBite) { e.lastBite = true; entSet(e, 'savour', 3.2); FX.spark(e.x + e.face * 17, e.y - 8); break; } // un dernier brin, gardé pour la fin
+        if (sw === 'gamelle' && hasQ(e, 'gamelle')) { e.done.eat = T; entSet(e, 'push', 1.8); break; }
+        entEat(e, env);
+      }
+      break;
+    }
+    case 'savour': { // le dernier brin : levé, contemplé, puis croqué
+      const t = e.t;
+      if (t < 1.6) { e.pose = 'curious'; e.f = 0; if (t > 1.0) env.discover(e, 'dernier'); }
+      else { e.pose = 'eat'; e.f = ((t / 0.3) | 0) & 1; if (e.f === 1 && ((t - dt) / 0.3 | 0) % 2 === 0) { AUD.munch(e.x); FX.crumbs(e.x + e.face * 17, e.y - 3, 3, HAYC); } }
+      if (t >= e.dur) { FX.heart(e.x + e.face * 6, e.y - 20); entEat(e, env); }
+      break;
+    }
+    case 'push': { // merci : deux coups de museau dans la gamelle, qui glisse un peu
+      const t = e.t;
+      if (t < 0.35) { e.pose = 'curious'; e.f = 0; }
+      else {
+        e.pose = 'eat'; e.f = (t < 0.55 || (t > 0.95 && t < 1.15)) ? 1 : 0;
+        if (t >= 0.45 && !e.p1) { e.p1 = 1; NUDGE.t = 0.5; NUDGE.dir = e.face; AUD.thump(e.x, 0.5); FX.heart(e.x + e.face * 14, e.y - 16); env.discover(e, 'gamelle'); }
+        if (t >= 1.0 && !e.p2) { e.p2 = 1; NUDGE.t = 0.5; NUDGE.dir = e.face; AUD.thump(e.x, 0.5); }
+      }
+      if (t >= e.dur) { e.p1 = e.p2 = 0; entSet(e, 'idle', 0.8 + e.rng()); }
+      break;
+    }
+    case 'startle': { // reflet : saut en arrière, on fige, puis on revient manger
+      const t = e.t;
+      if (t < 0.45) { const u = t / 0.45; e.pose = 'startle'; e.f = 0; e.hopY = Math.sin(Math.PI * u) * 7; const nx = e.sx + e.back * u; if (!navBlockedAt(env.world.nav, nx, e.y)) e.x = nx; }
+      else if (t < 1.4) { e.hopY = 0; e.pose = 'stand'; e.f = 0; }
+      else {
+        e.hopY = 0; const sp = e.spot;
+        if (sp) entGo(e, env, sp.x, sp.y, { st: 'eat', dur: 3 + e.rng() * 2.5, face: sp.face, spot: sp, calm: true, lastBite: false });
+        else entSet(e, 'idle', 1);
+      }
+      break;
+    }
+    case 'count': { // compte ses orteils avant de dormir : le nez court sur les pattes, un tic par orteil
+      const n = Math.min(4, (e.t / 0.62) | 0);
+      e.pose = 'eat'; e.f = n & 1;
+      if (n > e.cn) { e.cn = n; if (env.playing) AUD.ploc(e.x); FX.spark(e.x + e.face * 15, e.y - 2); if (n >= 3) env.discover(e, 'orteils'); }
+      if (e.t >= e.dur) { entSet(e, hasQ(e, 'tourne3') ? 'turn3' : 'sleep', hasQ(e, 'tourne3') ? 3 : (e.sleepDur || 10)); entEnter(e, env); }
+      break;
+    }
+    case 'chin': { // menton posé sur ce qui dépasse
+      e.pose = 'chin'; e.f = ((e.t / 1.6) | 0) & 1; e.nt -= dt;
+      if (e.nt <= 0) { e.nt = 2.2; FX.heart(e.x + e.face * 8, e.y - 17); if (e.rng() < 0.35) AUD.purr(e.pig, 0.9, 0.03, e.x); }
+      if (e.t > 1.8) env.discover(e, 'menton');
+      if (e.t >= e.dur) entSet(e, 'idle', 0.8 + e.rng());
+      break;
+    }
+    case 'shadow': { // se méfie de son ombre : la fixe, sursaute, file droit devant
+      const t = e.t;
+      if (t < 0.8) { e.pose = 'stand'; e.f = 0; }
+      else if (t < 1.8) { e.pose = 'eat'; e.f = 0; if (!e.sw) { e.sw = 1; FX.say(e.x, e.y - 24, '?', 7); } }
+      else if (t < 2.35) {
+        const u = (t - 1.8) / 0.55; e.pose = 'startle'; e.f = 0; e.hopY = Math.sin(Math.PI * u) * 6;
+        if (!e.sh2) { e.sh2 = 1; AUD.squeak(e.x); FX.puff(e.x, e.y); FX.say(e.x, e.y - 24, '!', 27); env.discover(e, 'ombre'); }
+        const nx = e.x + e.face * 15 * dt; if (!navBlockedAt(env.world.nav, nx, e.y)) e.x = nx;
+      } else { e.hopY = 0; e.pose = 'stand'; e.f = 0; }
+      if (t >= e.dur) { e.hopY = 0; entSet(e, 'idle', 0.8 + e.rng()); }
+      break;
+    }
+    case 'tunnel': { // entre d'un côté, ressort de l'autre, fait demi-tour et repasse
+      const tn = e.tn;
+      if (!tn) { entSet(e, 'idle', 1); break; }
+      if (e.ph === 0 || e.ph === 2) {
+        const dir = e.ph === 0 ? -1 : 1, target = e.ph === 0 ? tn.bx : tn.ax;
+        e.face = dir; e.pose = 'walk'; e.ft += dt * 30 / 2.6; const pf = e.f; e.f = Math.floor(e.ft) & 3; e.x += dir * 30 * dt; e.y = tn.y;
+        if (env.playing && e.f !== pf && (e.f & 1) === 0 && Math.abs(e.x - tn.cx) > 14) AUD.step(e.x, 0.7);
+        if ((dir < 0 && e.x <= target) || (dir > 0 && e.x >= target)) { e.x = target; e.ph++; e.t = 0; }
+      } else if (e.ph === 1) { // de l'autre côté : un instant de surprise, puis demi-tour
+        e.pose = 'curious'; e.f = 0; e.face = e.t < 0.45 ? -1 : 1;
+        if (e.t > 0.8) { env.discover(e, 'tunnel'); e.ph = 2; e.t = 0; }
+      } else { e.pose = 'stand'; e.f = 0; if (e.t > 0.5) { e.tn = null; entSet(e, 'idle', 0.8 + e.rng()); } }
+      break;
+    }
+    case 'fake': { // l'œil mi-clos : le cochon qui fait semblant de dormir guette entre deux ronflements
+      const t = e.t;
+      e.pose = 'sleep'; e.f = (((t / 1.25) | 0) & 1) + (((t > 1.5 && t < 2.2) || (t > 3.2 && t < 3.7)) ? 2 : 0);
+      e.zt -= dt; if (e.zt <= 0) { e.zt = 0.9; FX.zzz(e.x + e.face * 12, e.y - 14); }
+      if (t > 1.7) env.discover(e, 'semblant');
+      if (t >= e.dur) entSet(e, 'idle', 0.8 + e.rng());
       break;
     }
     case 'drink': {
@@ -2180,6 +2375,16 @@ function entUpdate(e, dt, env) {
     case 'care': Care.entUpdate(e, dt, env); break;
     default: entSet(e, 'idle', 1);
   }
+  if (e.doudou > 0) { // le brin de foin adopté
+    e.doudou -= dt; e.dTime = (e.dTime || 0) + dt;
+    if (e.dTime > 2.2 && ['eat', 'care', 'savour'].indexOf(e.st) < 0) env.discover(e, 'doudou');
+    if (e.doudou <= 0) { e.doudou = 0; FX.crumbs(e.x + e.face * 17, e.y - 6, 4, HAYC); }
+  }
+  if (e.cheek > 0) { // joues pleines : on mâchouille un moment, puis tout s'envole en miettes
+    e.cheek -= dt;
+    if (e.cheek < 6.2 && ['eat', 'care'].indexOf(e.st) < 0) env.discover(e, 'joues');
+    if (e.cheek <= 0) { e.cheek = 0; FX.crumbs(e.x + e.face * 17, e.y - 6, 6, HAYC); AUD.munch(e.x); }
+  }
   // bavardage
   if (env.playing && e.say <= 0 && e.st !== 'sleep') {
     e.say = e.char === 'bavard' ? 7 + e.rng() * 8 : 28 + e.rng() * 28;
@@ -2205,14 +2410,23 @@ function entHit(e, x, y) { const fx = (x - e.x) * e.face; return fx >= -15 && fx
 // micro-mouvements : clignements, oreille qui bouge, nez qui frémit
 function entFlags(e) {
   let fl = 0; const T = e.clock;
-  if (e.pose !== 'sleep' && e.pose !== 'popcorn' && (T % e.bp) < 0.13) fl |= 1;
+  if (e.pose !== 'sleep' && e.pose !== 'back' && e.pose !== 'popcorn' && e.pose !== 'startle' && (T % e.bp) < 0.13) fl |= 1;
   if ((e.pose === 'stand' || e.pose === 'curious') && ((T / e.fp + e.ph2) % 1) < 0.022) fl |= 2;
   if (e.st === 'care' && e.cp && e.cp.closed && e.cp.happy) fl |= 1; // yeux fermés pendant les caresses
   if ((e.st === 'sniff' || e.st === 'eat' || e.st === 'nibble') && (((T * 6) | 0) & 1)) fl |= 4;
   if (e.st === 'drink' && (((T * 5) | 0) & 1)) fl |= 4;
+  if (e.cheek > 0 && e.st !== 'care' && e.pose !== 'sleep' && e.pose !== 'back') { fl |= 8 | 16; if (((T * 5) | 0) & 1) fl |= 4; } // joues gonflées, du foin qui dépasse
+  else if ((e.doudou > 0 && ['eat', 'drink', 'nibble', 'sniff', 'care'].indexOf(e.st) < 0) || (e.st === 'savour' && e.t < 1.6)) fl |= 16;
   return fl;
 }
-function entDraw(ctx, e) { drawSprite(ctx, pigSprite(e.pig, e.pose, e.f, 0, entFlags(e)), e.x, e.y - (e.hopY || 0), e.face); }
+function entDraw(ctx, e) {
+  const spr = pigSprite(e.pig, e.pose, e.f, 0, entFlags(e));
+  if (e.st === 'tunnel' && e.tn) { // à l'intérieur du tunnel, on ne voit que ce qui dépasse aux extrémités
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, e.tn.cx - 14, 400); ctx.rect(e.tn.cx + 10, 0, 400, 400); ctx.clip();
+    drawSprite(ctx, spr, e.x, e.y - (e.hopY || 0), e.face); ctx.restore();
+  } else drawSprite(ctx, spr, e.x, e.y - (e.hopY || 0), e.face);
+}
+const entInTunnel = e => e.st === 'tunnel' && e.tn && Math.abs(e.x - e.tn.cx) < 12;
 
 /* ---- 09_save.js ---- */
 /* ==== 09 · sauvegarde : navigateur d'abord, mémoire de secours, copie dans le compte si la page y a accès ==== */
@@ -2428,14 +2642,19 @@ const Save = {
   },
   load() {
     this.ls = this.probe(); this.mode = this.ls ? 'navigateur' : 'mémoire';
-    let st = null; const raw = this.read(this.K1);
+    let st = null, why = ''; const raw = this.read(this.K1);
     if (raw) {
       st = this.parse(raw);
       if (!st) { // fichier abîmé : on le met de côté et on essaie la copie précédente
         this.write(this.KBAD, raw.slice(0, 20000));
         const prev = this.read(this.K2); st = prev ? this.parse(prev) : null;
-        this.notice = st ? 'Sauvegarde abîmée : retour à la copie précédente.' : 'Sauvegarde illisible : copie mise de côté, nouvelle partie.';
+        if (st) this.notice = 'Sauvegarde abîmée : retour à la copie précédente.'; else why = 'abîmée';
       }
+    } else why = 'absente';
+    if (!st && why) { // dernier secours : les copies automatiques du jeu (la plus récente qui se lit encore)
+      const r = Backup.rescue();
+      if (r) { st = r.st; this.state = st; this.notice = why === 'abîmée' ? 'Sauvegarde abîmée : retour à la copie automatique du jour ' + r.day + '.' : 'Partie retrouvée : copie automatique du jour ' + r.day + '.'; this.commit(); }
+      else if (why === 'abîmée') this.notice = 'Sauvegarde illisible : copie mise de côté, nouvelle partie.';
     }
     if (!st) { st = this.fresh(); this.state = st; this.commit(); }
     this.state = st; return st;
@@ -2445,7 +2664,8 @@ const Save = {
     const st = this.state; if (!st) return false;
     st.saved = Date.now(); st.v = SAVE_VERSION;
     let str; try { str = JSON.stringify(st); } catch (e) { this.err = 'sérialisation : ' + e; return false; }
-    const old = this.read(this.K1), ok = this.write(this.K1, str);
+    const old = this.read(this.K1); let ok = this.write(this.K1, str);
+    for (let i = 0; !ok && this.ls && i < 6 && Backup.autoFree(); i++) { ok = this.write(this.K1, str); if (ok) this.mode = 'navigateur'; } // plus de place : l'historique cède la sienne, moitié par moitié ; la partie passe avant tout
     if (ok && old && old !== str) this.write(this.K2, old);
     if (ok) { this.lastOk = Date.now(); this.err = null; }
     this.isDirty = false; this.lastCommit = Date.now();
@@ -2490,6 +2710,7 @@ const Save = {
   reset() {
     try { Backup.keep(); } catch (e) { /* la copie de sécurité est un plus */ } // « Revenir en arrière » rendra l'ancienne partie
     try { if (this.ls) { this.ls.removeItem(this.K1); this.ls.removeItem(this.K2); } } catch (e) { /* ignoré */ }
+    try { Backup.autoClear(); } catch (e) { /* ignoré */ } // les copies automatiques appartenaient à l'ancienne partie
     this.mem = {}; this.state = this.fresh(); this.commit(); this.flush(true); return this.state;
   },
   summary() { // texte pour l'écran Réglages
@@ -2836,6 +3057,9 @@ const Care = {
     for (let i = opts.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = opts[i]; opts[i] = opts[j]; opts[j] = t; }
     this.tray = { e: e, opts: opts.slice(0, 3), t: 0 };
     this.enter(e, { kind: 'wait', t: 0 }); AUD.pop();
+    GAME.ents.forEach(o => { // le frigo s'ouvre : celui qui fait semblant de dormir ferme les yeux
+      if (o !== e && hasQ(o, 'semblant') && ['idle', 'walk', 'look', 'wake', 'petted'].indexOf(o.st) >= 0) { o.path = []; o.then = null; o.hopY = 0; entSet(o, 'fake', 4.6); entEnter(o, GAME.env); }
+    });
   },
   closeTray() { const t = this.tray; this.tray = null; if (t && t.e.cp && t.e.cp.kind === 'wait') { t.e.cp = null; entSet(t.e, 'idle', 0.4); } AUD.back(); },
   pickVeg(e, v, row) {
@@ -3049,7 +3273,7 @@ const Care = {
     const st = GAME.state, c = st.care; if (this.fade || !c) return;
     if (Season.contestDue(st) && !UI.contest) { UI.endArm = 0; this.pend = null; this.drag = null; if (this.tray) this.closeTray(); Season.openContest(); return; } // le soir du rendez-vous : on y va avant de dormir
     UI.endArm = 0; this.pend = null; this.drag = null; if (this.tray) this.closeTray();
-    this.fade = { t: 0, did: false, recap: this.recap() }; AUD.chime();
+    this.fade = { t: 0, did: false, recap: this.recap(), hold: 3.4, lines: [] }; AUD.chime();
   },
   recap() { // petit bilan de la journée qui s'achève, montré pendant le fondu
     const st = GAME.state, c = st.care || {}, parts = [];
@@ -3068,10 +3292,20 @@ const Care = {
       this.resetRuntime(false);
       if (typeof Mail !== 'undefined') Mail.sync(st);
       Time.setPhase(0, true); Save.dirty(); Save.flush();
+      if (typeof Backup !== 'undefined') Backup.auto('jour'); // la copie du matin : l'état de la nouvelle journée, avant le moindre toucher
       GAME.ents.forEach(e => { e.hopY = 0; if (e.st === 'care') { e.cp = null; entSet(e, 'idle', 1); } });
+      // l'écran « Jour N » reste le temps de lire ses trois lignes ; un toucher le referme plus tôt (après 1,2 s)
+      f.lines = [Season.info(st).name + ' · jour ' + Season.dayIn(st.day) + ' sur ' + SEASON_DAYS].concat(this.packRecap(f.recap || '', 156), ['Les soins du matin commencent']); // le bilan passe à la ligne s'il est long, sans couper un nombre de son unité
+      f.hold = Access.holdSec(f.lines.join('').length);
     }
-    if (f.t >= 2.1) { this.fade = null; Life.afterFade(); }
+    if (f.did && f.t >= 0.6 + f.hold + 0.7) { this.fade = null; Life.afterFade(); }
   },
+  packRecap(txt, maxW) { // « Hier : 14 soins, 40 cœurs, 30 trèfles » : on coupe entre deux éléments, jamais au milieu
+    const out = []; let cur = '';
+    txt.split(', ').forEach(pt => { const t = cur ? cur + ', ' + pt : pt; if (cur && FONT.width(t) > maxW) { out.push(cur + ','); cur = pt; } else cur = t; });
+    if (cur) out.push(cur); return out;
+  },
+  skipFade() { const f = this.fade; if (f && f.did && f.t >= 1.8 && f.t < 0.6 + f.hold) { f.hold = f.t - 0.6; AUD.pop(); } },
 
   // ---------- dessin ----------
   worldItems() {
@@ -3149,10 +3383,14 @@ const Care = {
     });
   },
   drawFade(ctx) {
-    const f = this.fade, t = f.t, lv = t < 0.6 ? t / 0.6 : t < 1.5 ? 1 : Math.max(0, 1 - (t - 1.5) / 0.6);
+    const f = this.fade, t = f.t, tOut = 0.6 + (f.did ? f.hold : 9), lv = t < 0.6 ? t / 0.6 : t < tOut ? 1 : Math.max(0, 1 - (t - tOut) / 0.7);
     this.dims = this.dims || [0.25, 0.5, 0.75, 1.01].map(th => bake(G.W, G.H, x => { x.fillStyle = PAL_HEX[0]; for (let y = 0; y < G.H; y++) for (let xx = 0; xx < G.W; xx++) if (bayer(xx, y) < th) x.fillRect(xx, y, 1, 1); }));
     const i = Math.min(3, Math.floor(lv * 4)); if (lv > 0.05) ctx.drawImage(this.dims[Math.max(0, i - (lv < 1 ? 0 : 0))], 0, 0);
-    if (t > 0.55 && t < 1.7) { const day = GAME.state.day; bigText(ctx, 'Jour ' + day, 88, 128, 7, 1, 3); ctext(ctx, f.recap || '', 88, 166, 29, 1); ctext(ctx, 'Les soins du matin commencent', 88, 180, 26, 1); }
+    if (f.did && t < tOut) { // les lignes apparaissent l'une après l'autre : on lit au rythme où elles viennent
+      const k = t - 0.6; bigText(ctx, 'Jour ' + GAME.state.day, 88, 122, 7, 1, 3);
+      const n = f.lines.length; f.lines.forEach((l, i) => { if (k >= 0.3 + i * 0.5) ctext(ctx, l, 88, 158 + i * 14 + (i === n - 1 ? 2 : 0), i === 0 ? 27 : i === n - 1 ? 26 : 29, 1); });
+      if (t >= 1.8) { ctext(ctx, 'Touchez pour continuer', 88, 298, 26, 1); UI.reg('fade-skip', 0, 0, G.W, G.H); }
+    }
   },
   // les deux compteurs (trèfles à l'extrême droite, cœurs juste avant) et, le matin, la tournée en un coup d'œil
   drawClover(ctx, x, y, hi) {
@@ -3547,7 +3785,7 @@ const Time = {
     const armed = UI.endArm > 0; UI.close(); // close() remet l'avertissement à zéro : on retient s'il avait été donné
     if (st.phase === 0) {
       const left = Care.total(c);
-      if (left > 0 && !armed) { UI.endArm = 4; AUD.pop(); UI.toast('Passer à la journée ?', 'Il reste ' + left + (left > 1 ? ' bulles' : ' bulle') + '. Elles s’effaceront en fin de journée. Touchez encore pour passer quand même.', 'info'); return; }
+      if (left > 0 && !armed) { UI.endArm = 9; AUD.pop(); UI.toast('Passer à la journée ?', 'Il reste ' + left + (left > 1 ? ' bulles' : ' bulle') + '. Elles s’effaceront en fin de journée. Touchez encore pour passer quand même.', 'info'); return; }
       UI.endArm = 0; this.setPhase(1);
     } else if (st.phase === 1) { UI.endArm = 0; this.setPhase(2); Rare.eveningHook(); }
     else { UI.endArm = 0; Care.endDay(); }
@@ -3755,20 +3993,24 @@ const Arrive = {
    - Code « CLOS1.… » : partie et réglages, sans les photos ; sans guillemets, donc il survit aux messageries qui « embellissent » le texte.
    - Restaurer demande toujours confirmation, montre les deux parties côte à côte, et garde l'ancienne partie
      (clé « clos-wheeks-save-avant ») : « Revenir en arrière » la rend, et rend la nouvelle si on change encore d'avis.
-   - Rien ne punit : un seul petit conseil, une fois, sans jamais bloquer. */
+   - Copies automatiques : le jeu garde lui-même quelques copies (chaque matin, chaque début de saison, toutes les 20 minutes de jeu)
+     dans le navigateur. On y revient en deux touchers, et elles servent de dernier secours si la partie principale est abîmée.
+     Elles ne remplacent pas une copie hors de l'appareil : un rappel espacé et doux le dit.
+   - Rien ne punit : un seul petit conseil, puis un rappel rare, sans jamais bloquer. */
 const Backup = {
-  KS: 'clos-wheeks-save-avant', KM: 'clos-wheeks-copie', TAG: 'CLOS1.',
-  meta: null, msg: '', msgT: 0, msgBad: false, conf: null, undo: null, busy: false, installEvt: null, installed: false, chk: 0,
+  KS: 'clos-wheeks-save-avant', KM: 'clos-wheeks-copie', KA: 'clos-wheeks-auto', TAG: 'CLOS1.',
+  AUTO_KEEP: { temps: 2, jour: 5, saison: 3 }, AUTO_EVERY: 1200, AUTO_MAX: 360000, REMIND_MS: 14 * 86400000,
+  meta: null, msg: '', msgT: 0, msgBad: false, conf: null, undo: null, busy: false, installEvt: null, installed: false, chk: 0, al: null, page: '',
 
   // ---------- petites notes (dernière copie, conseils déjà donnés) ----------
   loadMeta() {
     if (this.meta) return this.meta;
     let o = null; try { o = JSON.parse(Save.read(this.KM) || 'null'); } catch (e) { o = null; }
     o = o && typeof o === 'object' ? o : {};
-    return (this.meta = { last: Math.max(0, +o.last || 0), tip: o.tip === 1 ? 1 : 0, tipi: o.tipi === 1 ? 1 : 0, pp: o.pp === 1 ? 1 : 0 });
+    return (this.meta = { last: Math.max(0, +o.last || 0), tip: o.tip === 1 ? 1 : 0, tipi: o.tipi === 1 ? 1 : 0, pp: o.pp === 1 ? 1 : 0, rem: Math.max(0, +o.rem || 0), rd: Math.max(0, o.rd | 0) });
   },
   saveMeta() { try { Save.write(this.KM, JSON.stringify(this.loadMeta())); } catch (e) { /* tant pis */ } },
-  say(t, bad) { this.msg = t; this.msgBad = !!bad; this.msgT = 6; },
+  say(t, bad) { this.msg = t; this.msgBad = !!bad; this.msgT = Access.slow ? 12 : 6; },
 
   // ---------- codage du texte (UTF-8 → base64 « url », sans « = » ni « + ») ----------
   toB64(str) {
@@ -3823,7 +4065,7 @@ const Backup = {
     } catch (e) { this.say('Fichier impossible ici. Essayez le code.', true); AUD.deny(); }
     this.busy = false;
   },
-  done(t) { const m = this.loadMeta(); m.last = Date.now(); this.saveMeta(); this.say(t, false); AUD.chime(); },
+  done(t) { const m = this.loadMeta(); m.last = Date.now(); m.rd = GAME.state ? GAME.state.day : 0; this.saveMeta(); this.say(t, false); AUD.chime(); },
 
   async copyCode() {
     if (this.busy) return; this.busy = true;
@@ -3919,13 +4161,82 @@ const Backup = {
     if (pk.confort) { Access.sane(pk.confort); Access.save(); try { AUD.setOn(st.settings.sound); AUD.setAmb(); } catch (e) { /* tant pis */ } }
     else { try { AUD.setOn(st.settings.sound); } catch (e) { /* tant pis */ } }
     const was = UI.screen;
-    UI.settings = false; UI.comfort = false; UI.bu = false; UI.card = null; UI.photo = null; UI.close(); UI.toasts = [];
+    this.page = ''; UI.settings = false; UI.comfort = false; UI.bu = false; UI.card = null; UI.photo = null; UI.close(); UI.toasts = [];
     if (was === 'title') UI.enter();
-    UI.toast(c.undo ? 'Partie d’avant retrouvée' : 'Partie restaurée', 'Jour ' + st.day + ' : ' + this.nPigs(st) + ' vous attendent.', 'info'); AUD.chime();
+    UI.toast(c.undo ? 'Partie d’avant retrouvée' : (c.kind === 'auto' ? 'Retour au jour ' + st.day : 'Partie restaurée'), 'Jour ' + st.day + ' : ' + this.nPigs(st) + ' vous attendent.', 'info'); AUD.chime();
     this.readUndo();
   },
   nPigs(st) { const n = st.pigs.length; return n + ' cochon' + (n > 1 ? 's' : ''); },
   fmtDate(t) { if (!t) return ''; const d = new Date(t), p = n => ('0' + n).slice(-2); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); },
+
+  // ---------- copies automatiques (historique tenu par le jeu, dans le navigateur) ----------
+  // Une entrée : {at: heure, day: jour de jeu, n: cochons, cr: identité de la partie, p: secondes jouées, k: 'jour'|'saison'|'temps', sn: saison, s: partie en texte}
+  // Règle d'or : cet historique ne touche jamais à l'état de Save (pas de Save.write) et s'efface le premier si la place manque.
+  autoLoad() {
+    if (this.al) return this.al;
+    let o = null; try { o = JSON.parse(Save.read(this.KA) || 'null'); } catch (e) { o = null; }
+    const out = [];
+    if (o && typeof o === 'object' && Array.isArray(o.list)) o.list.forEach(e => {
+      if (!e || typeof e !== 'object' || typeof e.s !== 'string' || e.s.length < 20 || e.s.length > 400000) return;
+      out.push({ at: +e.at || 0, day: Math.max(1, e.day | 0), n: Math.max(0, e.n | 0), cr: +e.cr || 0, p: Math.max(0, +e.p || 0), k: e.k === 'saison' || e.k === 'temps' ? e.k : 'jour', sn: typeof e.sn === 'string' ? e.sn.slice(0, 14) : '', s: e.s });
+    });
+    out.sort((a, b) => b.at - a.at); // la plus récente d'abord
+    return (this.al = out.slice(0, 30));
+  },
+  autoPut(list) {
+    const str = JSON.stringify({ v: 1, list: list });
+    try { if (Save.ls) Save.ls.setItem(this.KA, str); else Save.mem[this.KA] = str; return true; } catch (e) { return false; }
+  },
+  autoTrim(list) { // quelques copies par sorte, et un plafond de taille : on retire d'abord les plus anciennes du quotidien
+    const seen = { temps: 0, jour: 0, saison: 0 }, out = [];
+    list.forEach(e => { if (++seen[e.k] <= this.AUTO_KEEP[e.k]) out.push(e); });
+    const size = () => out.reduce((a, e) => a + e.s.length + 90, 0);
+    const drop = k => { for (let i = out.length - 1; i > 0; i--) if (out[i].k === k) { out.splice(i, 1); return true; } return false; }; // jamais la plus récente
+    while (size() > this.AUTO_MAX && out.length > 1) { if (!drop('temps') && !drop('jour') && !drop('saison')) break; }
+    return out;
+  },
+  auto(kind) { // prend une copie de la partie telle qu'elle est ; ne plante jamais
+    try {
+      const st = GAME.state; if (!st || !st.pigs || (!st.pigs.length && !st.nursery)) return false; // un refuge vide dont les deux cochons sont à la Chambre douillette reste une partie
+      const k = kind === 'jour' && Season.dayIn(st.day) === 1 ? 'saison' : kind;
+      const raw = JSON.stringify(st); if (raw.length > 200000) return false;
+      let list = this.autoLoad().filter(e => e.cr === st.created); // une autre partie (nouvelle partie, fichier d'ailleurs) : on repart de zéro
+      list = this.autoTrim([{ at: Date.now(), day: st.day, n: st.pigs.length, cr: st.created, p: Math.round(st.play) || 0, k: k, sn: Season.info(st).name, s: raw }].concat(list));
+      let ok = this.autoPut(list);
+      if (!ok) { list = list.slice(0, Math.max(1, list.length >> 1)); ok = this.autoPut(list); }
+      this.al = list; // si l'écriture échoue, la liste vit en mémoire jusqu'à la fermeture : rien n'est dit, rien n'est cassé
+      return ok;
+    } catch (e) { return false; }
+  },
+  autoList() { const st = GAME.state; return this.autoLoad().filter(e => !st || e.cr === st.created).slice(0, 10); },
+  autoDue() { // vingt minutes de jeu depuis la dernière copie de cette partie : une copie « de séance »
+    const st = GAME.state; if (!st) return false;
+    const l = this.autoList(); let base = 0; l.forEach(e => { if (e.p <= st.play && e.p > base) base = e.p; });
+    return st.play - base >= this.AUTO_EVERY;
+  },
+  autoClear() { this.al = []; try { if (Save.ls) Save.ls.removeItem(this.KA); delete Save.mem[this.KA]; } catch (e) { /* rien */ } },
+  autoFree() { // la partie principale manque de place : l'historique cède la moitié de la sienne
+    const l = this.autoLoad(); if (!l.length) return false;
+    const keep = l.slice(0, l.length >> 1); this.al = keep;
+    try { if (keep.length) Save.ls.setItem(this.KA, JSON.stringify({ v: 1, list: keep })); else Save.ls.removeItem(this.KA); }
+    catch (e) { this.al = []; try { Save.ls.removeItem(this.KA); } catch (e2) { /* rien */ } }
+    return true;
+  },
+  rescue() { // dernier secours au chargement : la copie automatique la plus récente qui se lit encore
+    try { const l = this.autoLoad(); for (let i = 0; i < l.length; i++) { const st = Save.parse(l[i].s); if (st) return { st: st, day: st.day }; } } catch (e) { /* rien */ }
+    return null;
+  },
+  autoLabel(e) {
+    const d = new Date(e.at), p = n => ('0' + n).slice(-2), t = new Date();
+    const when = d.toDateString() === t.toDateString() ? p(d.getHours()) + ':' + p(d.getMinutes()) : p(d.getDate()) + '/' + p(d.getMonth() + 1);
+    return e.k === 'saison' ? e.sn + ' · jour ' + e.day : 'Jour ' + e.day + ' · ' + when; // le début d'une saison se reconnaît à son nom
+  },
+  stageAuto(i) {
+    const e = this.autoList()[i]; if (!e) return;
+    const st = Save.parse(e.s);
+    if (!st) { this.say('Cette copie ne se lit plus.', true); AUD.deny(); return; }
+    this.conf = { pk: { ok: true, st: st, album: null, confort: null, date: e.at }, kind: 'auto', undo: false }; AUD.pop();
+  },
 
   // ---------- installation, stockage durable, conseils ----------
   init() {
@@ -3950,20 +4261,34 @@ const Backup = {
     if (!m.tipi && day >= 2 && this.isIOS() && !this.standalone()) {
       m.tipi = 1; this.saveMeta(); UI.toast('Astuce', 'Pour jouer en plein écran : touchez Partager, puis « Sur l’écran d’accueil ».', 'info'); return;
     }
-    if (!m.tip && !m.last && day >= 8 && !(Save.remote && (Save.remote.state === 'ok' || Save.remote.state === 'prête'))) {
-      m.tip = 1; this.saveMeta(); UI.toast('Astuce', 'Une copie de votre partie se garde dans Réglages, « Sauvegarde ».', 'info');
+    if (this.autoDue()) this.auto('temps'); // copie de séance, sans bruit
+    const cloud = Save.remote && (Save.remote.state === 'ok' || Save.remote.state === 'prête'), now = Date.now();
+    if (!m.tip && !m.last && day >= 8 && !cloud) {
+      m.tip = 1; m.rem = now; m.rd = day; this.saveMeta(); UI.toast('Astuce', 'Une copie de votre partie se garde dans Réglages, « Sauvegarde ».', 'info');
+    } else if (m.tip + (m.last ? 1 : 0) > 0 && !cloud && day >= 8 && day - m.rd >= 6 && now - Math.max(m.last, m.rem) >= this.REMIND_MS) {
+      // rappel rare et doux : deux semaines réelles sans copie hors de l'appareil, et de vrais jours joués depuis
+      m.rem = now; m.rd = day; this.saveMeta();
+      UI.toast('Une copie ?', 'La partie vit dans ce navigateur. Réglages, « Sauvegarde » : une copie à garder ailleurs.', 'info');
     }
   },
 
   // ---------- page « Sauvegarde » ----------
-  open() { this.conf = null; this.msgT = 0; this.readUndo(); },
+  open() { this.conf = null; this.msgT = 0; this.page = ''; this.readUndo(); },
+  back() { if (this.conf) this.conf = null; else if (this.page) this.page = ''; else UI.closeBackup(); }, // touche Échap : un cran en arrière
   act(h) {
     const id = h.id;
     if (this.conf) {
       if (id === 'bu-yes') this.apply(); else if (id === 'bu-no') { this.conf = null; AUD.back(); }
       return; // le reste est ignoré tant que la question est posée
     }
+    if (this.page === 'auto') {
+      if (id === 'bu-aback') { this.page = ''; AUD.back(); }
+      else if (id === 'bu-close') { this.page = ''; AUD.back(); }
+      else if (/^bu-a\d+$/.test(id)) this.stageAuto(+id.slice(4));
+      return;
+    }
     switch (id) {
+      case 'bu-auto': this.page = 'auto'; this.msgT = 0; AUD.pop(); break;
       case 'bu-title': AUD.init(); UI.settings = true; UI.bu = true; this.open(); AUD.pop(); break;
       case 'bu-open': UI.bu = true; this.open(); AUD.pop(); break;
       case 'bu-close': UI.closeBackup(); AUD.back(); break;
@@ -3977,9 +4302,10 @@ const Backup = {
     }
   },
   draw(ctx) {
+    if (this.page === 'auto') { this.drawAuto(ctx); if (this.conf) this.drawConfirm(ctx); return; }
     UI.reg('bu-close', 0, 0, G.W, G.H, 'bg');
     dimLayer(ctx);
-    const px = 12, py = 24, pw = 152, ph = 270, cx = px + (pw >> 1), W = pw - 24, m = this.loadMeta();
+    const px = 12, py = 10, pw = 152, ph = 300, cx = px + (pw >> 1), W = pw - 24, m = this.loadMeta();
     UI.reg('bu-panel', px, py, pw, ph);
     panel(ctx, px, py, pw, ph);
     ctext(ctx, 'Sauvegarde', cx, py + 9, 13);
@@ -3993,11 +4319,13 @@ const Backup = {
     }
     let y = py + 52;
     const sec = (title, desc) => { FONT.draw(ctx, title, px + 12, y, 19, 1); y += 11; FONT.wrap(desc, W).forEach(l => { FONT.draw(ctx, l, px + 12, y, 14, 1); y += 10; }); y += 3; };
-    sec('Fichier', 'Tout : partie, réglages et photos.');
+    sec('Fichier', 'Tout, photos comprises.');
     UI.btn(ctx, 'bu-file', px + 12, y, W, 18, 'Enregistrer un fichier', 'set'); y += 22;
     UI.btn(ctx, 'bu-load', px + 12, y, W, 18, 'Restaurer un fichier', 'set'); y += 26;
-    sec('Code', 'Partie et réglages, sans les photos.');
+    sec('Code', 'Sans les photos.');
     UI.btn(ctx, 'bu-copy', px + 12, y, 62, 18, 'Copier', 'set'); UI.btn(ctx, 'bu-paste', px + pw - 12 - 62, y, 62, 18, 'Coller', 'set'); y += 26;
+    FONT.draw(ctx, 'Copies automatiques', px + 12, y, 19, 1); y += 11;
+    UI.btn(ctx, 'bu-auto', px + 12, y, W, 18, 'Revenir à un jour passé', 'set'); y += 26;
     if (this.undo) {
       FONT.draw(ctx, 'Partie d’avant', px + 12, y, 19, 1); y += 11;
       FONT.draw(ctx, 'Jour ' + this.undo.st.day + ', ' + this.nPigs(this.undo.st) + '.', px + 12, y, 14, 1); y += 13;
@@ -4006,6 +4334,22 @@ const Backup = {
     UI.btn(ctx, 'bu-close', cx - 30, py + ph - 28, 60, 18, 'Retour', 'set');
     if (this.conf) this.drawConfirm(ctx);
   },
+  drawAuto(ctx) {
+    UI.reg('bu-close', 0, 0, G.W, G.H, 'bg');
+    dimLayer(ctx);
+    const px = 12, py = 10, pw = 152, ph = 300, cx = px + (pw >> 1), W = pw - 24, l = this.autoList();
+    UI.reg('bu-panel', px, py, pw, ph);
+    panel(ctx, px, py, pw, ph);
+    ctext(ctx, 'Copies automatiques', cx, py + 9, 13);
+    R(ctx, px + 20, py + 20, pw - 40, 1, 17);
+    let y = py + 26;
+    const help = l.length ? 'Toucher un jour pour y revenir.' : 'Pas encore de copie. La première arrive demain matin.';
+    const hl = FONT.wrap(help, W).slice(0, 3); hl.forEach((t, i) => FONT.draw(ctx, t, px + 12, y + i * 10, 14, 1));
+    y = py + 28 + Math.max(2, hl.length) * 10;
+    if (this.msgT > 0 && this.msg) FONT.wrap(this.msg, W).slice(0, 2).forEach((t, i) => FONT.draw(ctx, t, px + 12, py + ph - 52 + i * 10, this.msgBad ? 18 : 9, 1));
+    l.forEach((e, i) => { UI.btn(ctx, 'bu-a' + i, px + 12, y, W, 18, this.autoLabel(e), 'set'); y += 20; });
+    UI.btn(ctx, 'bu-aback', cx - 30, py + ph - 28, 60, 18, 'Retour', 'set');
+  },
   drawConfirm(ctx) {
     const c = this.conf, pk = c.pk, st = GAME.state;
     UI.reg('bu-nop', 0, 0, G.W, G.H, 'q'); // toucher à côté ne fait rien
@@ -4013,7 +4357,7 @@ const Backup = {
     dimLayer(ctx); // assombrit encore la page derrière
     panel(ctx, px, py, pw, ph);
     UI.reg('bu-box', px, py, pw, ph);
-    ctext(ctx, c.undo ? 'Revenir en arrière ?' : 'Restaurer la copie ?', cx, py + 10, 19);
+    ctext(ctx, c.undo ? 'Revenir en arrière ?' : (c.kind === 'auto' ? 'Revenir à ce jour ?' : 'Restaurer la copie ?'), cx, py + 10, 19);
     R(ctx, px + 20, py + 21, pw - 40, 1, 17);
     let y = py + 28;
     const line = (t, col) => FONT.wrap(t, W).forEach(l => { FONT.draw(ctx, l, px + 10, y, col, 1); y += 10; });
@@ -4583,7 +4927,7 @@ const Deco = {
   ok() { const p = UI.place; return !!p && this.valid(p.k, p.x, p.y, p.idx); },
   commit() {
     const p = UI.place, st = GAME.state; if (!p) return;
-    if (!this.ok()) { AUD.deny(); this.msg = 'Pas ici : la place est prise.'; this.msgT = 2; return; }
+    if (!this.ok()) { AUD.deny(); this.msg = 'Pas ici : la place est prise.'; this.msgT = Access.briefSec(this.msg.length); return; }
     if (p.idx >= 0) { st.deco[p.idx].x = p.x; st.deco[p.idx].y = p.y; }
     else { st.deco.push({ id: p.k, x: p.x, y: p.y }); st.inv[p.k] = (st.inv[p.k] | 0) - 1; if (st.inv[p.k] <= 0) delete st.inv[p.k]; }
     UI.place = null; Save.dirty(); this.rebuildNav(); Coin.after();
@@ -5153,7 +5497,7 @@ const Market = {
   },
   update(dt) { const m = UI.market; if (m && m.msgT > 0) m.msgT -= dt; },
   have(k) { const st = GAME.state; return (st.inv[k] | 0) + st.deco.filter(d => d.id === k).length; },
-  say(t) { const m = UI.market; if (m) { m.msg = t; m.msgT = 2.4; } },
+  say(t) { const m = UI.market; if (m) { m.msg = t; m.msgT = Access.briefSec(t.length); } },
   geom() {
     const per = 5, rh = 27, pages = Math.ceil(SHOP_KEYS.length / per), page = clamp(UI.market.page, 0, pages - 1), w = 164, h = 52 + per * rh + 24, x = (G.W - w) >> 1, y = clamp(Math.round((BAR_Y - h) / 2) + 2, HUD_H + 3, 40);
     return { x: x, y: y, w: w, h: h, per: per, rh: rh, pages: pages, page: page, keys: SHOP_KEYS.slice(page * per, page * per + per) };
@@ -5605,7 +5949,7 @@ const Photo = {
     if (this.nPhotos() >= PHOTO_MAX) { this.say('Album plein : supprimez une photo.'); AUD.deny(); return; }
     this.want = true; this.flash = Access.calm ? 0 : 0.2; AUD.shutter();
   },
-  say(t) { this.note = t; this.noteT = 2.2; },
+  say(t) { this.note = t; this.noteT = Access.briefSec(t.length); },
   grab(ctx) { // appelé par le rendu, après le décor et la nuit, avant l'interface : l'image est propre
     this.want = false; const v = UI.photo, st = GAME.state; if (!v) return;
     const x0 = v.x, y0 = v.y, inside = GAME.ents.filter(e => e.x >= x0 + 4 && e.x < x0 + PHOTO_W - 4 && e.y - 6 >= y0 && e.y - 6 < y0 + PHOTO_H).sort((a, b) => a.x - b.x);
@@ -6306,12 +6650,17 @@ const clockStr = t => { if (!t) return 'jamais'; const d = new Date(t); return (
 
 const UI = {
   screen: 'title', card: null, settings: false, comfort: false, bu: false, menu: false, market: null, place: null, seedpick: null, letter: false, nurs: null, birth: null, arrive: null, book: null, adopt: null, season: false, contest: null, moment: null, postcard: null, resetArm: 0, endArm: 0, toasts: [], hits: [], pressed: null, down: false, t: 0, gallery: null,
-  toast(title, msg, group) { // un bandeau de même groupe en remplace un autre, pour ne jamais en empiler
-    if (group) this.toasts = this.toasts.filter(t => t.group !== group);
-    this.toasts.push({ title: title, lines: FONT.wrap(msg, 144), t: 0, dur: Access.toastSec(), group: group }); if (this.toasts.length > 3) this.toasts.shift();
+  // Les bandeaux font la queue : deux à l'écran au plus, les autres attendent leur tour (leur temps de lecture ne commence qu'à l'affichage)
+  // et aucun n'est coupé par le suivant. Un bandeau de même titre qu'un autre (« Une bulle ! » avec un autre conseil) le remplace au lieu de s'empiler.
+  toastShown: 2, toastQueue: 10,
+  toast(title, msg, group) {
+    msg = msg || ''; const lines = FONT.wrap(msg, 144), dur = Access.toastSec(title.length + msg.length), same = this.toasts.find(t => t.title === title);
+    if (same) { same.lines = lines; same.dur = dur; same.t = Math.min(same.t, 0.25); return; }
+    this.toasts.push({ title: title, lines: lines, t: 0, dur: dur, group: group });
+    while (this.toasts.length > this.toastQueue) this.toasts.splice(this.toastShown, 1); // la file déborde : on laisse partir le plus ancien parmi ceux qui attendent
   },
   closeComfort() { this.comfort = false; if (this.screen === 'title') this.settings = false; }, // sur l'écran-titre, il n'y a pas de page « Réglages » derrière
-  closeBackup() { this.bu = false; Backup.conf = null; if (this.screen === 'title') this.settings = false; },
+  closeBackup() { this.bu = false; Backup.conf = null; Backup.page = ''; if (this.screen === 'title') this.settings = false; },
   hushed() { return this.modal() && !this.place; }, // les bandeaux attendent qu'on ait fini de lire un panneau
   modal() { return !!(this.menu || this.market || this.place || this.seedpick || this.letter || this.nurs || this.birth || this.arrive || this.book || this.adopt || this.season || this.contest || this.moment || this.photo || this.album); },
   close() { this.menu = false; this.market = null; this.seedpick = null; this.letter = false; this.nurs = null; this.arrive = null; this.book = null; this.adopt = null; this.season = false; this.postcard = null; this.endArm = 0; this.album = null; },
@@ -6383,6 +6732,7 @@ const UI = {
       case 'photo-open': this.menu = false; Photo.start(); break;
       case 'album-open': Photo.openAlbum(); break;
       case 'toast': this.toasts = this.toasts.filter(t => t !== h.data); break;
+      case 'fade-skip': Care.skipFade(); break;
       case 'world': this.worldTap(x, y); break;
       default: {
         const m = h.id.slice(0, 3);
@@ -6403,7 +6753,7 @@ const UI = {
   },
   update(dt) {
     this.t += dt;
-    if (!this.card && !this.settings && this.screen === 'play' && !this.hushed()) for (const t of this.toasts) t.t += dt;
+    if (!this.card && !this.settings && this.screen === 'play' && !this.hushed() && !Care.fade) for (const t of this.toasts.slice(0, this.toastShown)) t.t += dt;
     Market.update(dt); Nurs.update(dt); Backup.update(dt);
     this.toasts = this.toasts.filter(t => t.t < t.dur);
     if (this.resetArm > 0) this.resetArm = Math.max(0, this.resetArm - dt);
@@ -6506,7 +6856,7 @@ const UI = {
   },
   drawToasts(ctx) {
     let y = HUD_H + 4; this.toastRects = []; if (this.hushed()) return;
-    for (const t of this.toasts) {
+    for (const t of this.toasts.slice(0, this.toastShown)) {
       const h = 14 + t.lines.length * 11, a = Math.min(1, t.t / 0.25), out = t.t > t.dur - 0.5;
       if (out && !Access.calm && ((t.t * 14) | 0) % 2) { y += h + 3; continue; }
       const yy = Math.round(y - (1 - a) * 16);
@@ -6623,7 +6973,7 @@ const UI = {
     }
     FONT.draw(ctx, sv.ok ? 'Enregistré à ' + clockStr(sv.ok) : 'Pas encore enregistré', px + 12, y, 14, 1); y += 17;
     this.btn(ctx, 'reset', px + 12, y, pw - 24, 18, this.resetArm > 0 ? 'Sûr ? Toucher encore' : 'Nouvelle partie', 'set'); y += 26;
-    ctext(ctx, 'Version 1.0', px + (pw >> 1), y, 14); y += 16;
+    ctext(ctx, 'Version 1.2', px + (pw >> 1), y, 14); y += 16;
     this.btn(ctx, 'settings-close', px + (pw >> 1) - 30, y, 60, 18, 'Fermer', 'set');
   }
 };
@@ -6689,7 +7039,7 @@ const UI = {
   function renderWorld(ctx, time) {
     const w = GAME.world;
     ctx.drawImage(w.ground, 0, 0);
-    for (const e of GAME.ents) groundShadow(ctx, w, e.x + 1, e.y, 9.5 - Math.min(3.5, (e.hopY || 0) * 0.4), 2.6);
+    for (const e of GAME.ents) { if (entInTunnel(e)) continue; groundShadow(ctx, w, e.x + 1, e.y, 9.5 - Math.min(3.5, (e.hopY || 0) * 0.4), 2.6); }
     const list = [];
     for (const it of Care.worldItems()) list.push(it);
     for (const it of Garden.items()) list.push(it);
@@ -6702,7 +7052,7 @@ const UI = {
     for (const e of GAME.ents) list.push({ y: e.y + 0.01, e: e });
     list.sort((a, b) => a.y - b.y);
     for (const it of list) {
-      if (it.o) ctx.drawImage(it.o.spr, it.o.x - it.o.ox, it.o.y - it.o.oy);
+      if (it.o) ctx.drawImage(it.o.spr, it.o.x - it.o.ox + (it.o.n === 'bowl' ? bowlDx() : 0), it.o.y - it.o.oy);
       else if (it.t) { const t = it.t; ctx.drawImage(w.tuftSpr[Math.sin(time * 1.7 + t.x * 0.07 + t.y * 0.03) > 0.1 ? 1 : 0], t.x - 3, t.y - 5); }
       else if (it.f) { const f = it.f; ctx.drawImage(f.spr[Math.sin(time * 1.5 + f.x * 0.06 + f.ph) > 0.2 ? 1 : 0], f.x - 3, f.y - 7); }
       else if (it.fn) it.fn(ctx);
@@ -6714,7 +7064,7 @@ const UI = {
   }
 
   function update(dt) {
-    G.time += dt; const env = GAME.env; env.time = G.time; env.playing = GAME.playing;
+    G.time += dt; const env = GAME.env; env.time = G.time; env.playing = GAME.playing; if (NUDGE.t > 0) NUDGE.t = Math.max(0, NUDGE.t - dt);
     for (const e of GAME.ents) entUpdate(e, dt, env);
     Care.update(dt, env); Time.update(dt); Garden.update(dt); Coin.update(dt);
     BFLY.update(dt, GAME.world, rngMain); FX.update(dt, GAME.world); UI.update(dt);
@@ -6725,8 +7075,35 @@ const UI = {
     if (UI.screen !== 'gallery') { renderWorld(L0, G.time); Time.draw(L0); if (Photo.want) Photo.grab(L0); }
     UI.draw(L0);
   }
+  // ---------- marges décorées : sur un grand écran, le jeu est entouré d'une haie fleurie plutôt que d'un aplat sombre ----------
+  const MT = 32, DUSK = { 8: 0, 9: 8, 2: 1, 10: 9, 11: 10, 7: 4, 23: 22, 27: 20 }; // le soir, la haie reprend les teintes sombres de la palette
+  function marginTile(dusk) { // une tuile sans couture (chaque pixel ne dépend que de sa position), en couleurs de la palette
+    const c = document.createElement('canvas'); c.width = MT; c.height = MT; const g = c.getContext('2d');
+    const h = (x, y, k) => { let v = (Math.imul((x + MT) % MT + 1, 374761393) + Math.imul((y + MT) % MT + 1, 668265263) + Math.imul(k, 1274126177)) | 0; v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+    const put = (x, y, i) => { g.fillStyle = PAL_HEX[dusk ? DUSK[i] : i]; g.fillRect(((x % MT) + MT) % MT, ((y % MT) + MT) % MT, 1, 1); };
+    for (let y = 0; y < MT; y++) for (let x = 0; x < MT; x++) { const r = h(x, y, 1); put(x, y, r < 0.14 ? 9 : r < 0.2 ? 2 : 8); }
+    for (let y = 0; y < MT; y++) for (let x = 0; x < MT; x++) { // petites touffes de feuilles : un pixel clair et son ombre
+      if (h(x, y, 2) < 0.05) { put(x, y, 10); put(x + 1, y, 10); put(x, y + 1, 9); if (h(x, y, 5) < 0.4) put(x + 1, y - 1, 11); }
+    }
+    for (let y = 0; y < MT; y++) for (let x = 0; x < MT; x++) { const r = h(x, y, 3); if (r < 0.007) { put(x, y, r < 0.0025 ? 7 : r < 0.005 ? 23 : 27); put(x, y + 1, 9); } } // quelques fleurs
+    return c;
+  }
+  const MARGINS = [marginTile(false), marginTile(true)];
+  let mcache = [null, null];
+  function marginArt(n) {
+    const mc = mcache[n];
+    if (mc && mc.w === view.width && mc.h === view.height && mc.S === S && mc.ox === ox && mc.oy === oy) return mc.c;
+    const c = document.createElement('canvas'); c.width = view.width; c.height = view.height; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    for (let y = 0; y < view.height; y += MT * S) for (let x = 0; x < view.width; x += MT * S) g.drawImage(MARGINS[n], 0, 0, MT, MT, x, y, MT * S, MT * S);
+    g.fillStyle = PAL_HEX[0]; g.fillRect(ox - 2 * S, oy - 2 * S, G.W * S + 4 * S, G.H * S + 4 * S); // liseré sombre autour de l'écran du jeu
+    mcache[n] = { c: c, w: view.width, h: view.height, S: S, ox: ox, oy: oy }; return c;
+  }
   function present() {
-    vctx.fillStyle = PAL_HEX[0]; vctx.fillRect(0, 0, view.width, view.height);
+    const gw = G.W * S, gh = G.H * S, vw = view.width, vh = view.height;
+    if (ox > 0 || oy > 0) { // seules les marges sont (re)dessinées
+      const m = marginArt(Time.ph === 2 && Time.k > 0.5 ? 1 : 0), d = (sx, sy, w, h) => { if (w > 0 && h > 0) vctx.drawImage(m, sx, sy, w, h, sx, sy, w, h); };
+      d(0, 0, vw, oy); d(0, oy + gh, vw, vh - oy - gh); d(0, oy, ox, gh); d(ox + gw, oy, vw - ox - gw, gh);
+    }
     vctx.drawImage(lo, 0, 0, G.W, G.H, ox, oy, G.W * S, G.H * S);
   }
 
@@ -6769,8 +7146,8 @@ const UI = {
   view.addEventListener('pointercancel', ev => { if (ev.pointerId === activeId) { activeId = null; UI.pressed = null; UI.down = false; Care.pend = null; Care.drag = null; } });
   view.addEventListener('contextmenu', ev => ev.preventDefault());
   window.addEventListener('keydown', ev => {
-    if (ev.key === 'Enter' || ev.key === ' ') { if (UI.screen === 'title') { ev.preventDefault(); AUD.init(); UI.enter(); } }
-    else if (ev.key === 'Escape') { if (UI.card) UI.card = null; else if (UI.comfort) UI.closeComfort(); else if (UI.bu) { if (Backup.conf) Backup.conf = null; else UI.closeBackup(); } else if (UI.settings) UI.settings = false; else if (UI.place) Deco.store(); else if (UI.photo) Photo.stop(); else if (UI.album) { if (UI.album.view >= 0) UI.album.view = -1; else UI.album = null; } else if (UI.modal()) UI.close(); else if (UI.screen === 'gallery') UI.screen = 'play'; }
+    if (ev.key === 'Enter' || ev.key === ' ') { if (UI.screen === 'title') { ev.preventDefault(); AUD.init(); UI.enter(); } else if (Care.fade) { ev.preventDefault(); Care.skipFade(); } }
+    else if (ev.key === 'Escape') { if (UI.card) UI.card = null; else if (UI.comfort) UI.closeComfort(); else if (UI.bu) Backup.back(); else if (UI.settings) UI.settings = false; else if (UI.place) Deco.store(); else if (UI.photo) Photo.stop(); else if (UI.album) { if (UI.album.view >= 0) UI.album.view = -1; else UI.album = null; } else if (UI.modal()) UI.close(); else if (UI.screen === 'gallery') UI.screen = 'play'; }
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { try { Save.flush(); } catch (e) { /* rien */ } }
@@ -6789,7 +7166,7 @@ const UI = {
 
   // pour les tests automatiques : avance le temps sans dessiner
   window.CLOS = {
-    Access: Access, FONT: FONT, G: G, GAME: GAME, UI: UI, Save: Save, AUD: AUD, FX: FX, BFLY: BFLY, Care: Care, Time: Time, Garden: Garden, Mail: Mail, Deco: Deco, Coin: Coin, Photo: Photo, Backup: Backup, Market: Market, Life: Life, Arrive: Arrive, Season: Season, Rare: Rare, DATA: { vetAdvice: vetAdvice, crossPig: crossPig, crossOdds: crossOdds, revealCarriers: revealCarriers, makePig: makePig, phenotype: phenotype, GENES: GENES, parentRec: parentRec }, Nurs: Nurs, Book: Book, Adopt: Adopt,
+    Access: Access, FONT: FONT, G: G, GAME: GAME, UI: UI, Save: Save, AUD: AUD, FX: FX, BFLY: BFLY, Care: Care, Time: Time, Garden: Garden, Mail: Mail, Deco: Deco, Coin: Coin, Photo: Photo, Backup: Backup, Market: Market, Life: Life, Arrive: Arrive, Season: Season, Rare: Rare, ENT: { entSet: entSet, entGo: entGo, entStart: entStart, entEnter: entEnter, entFlags: entFlags, NUDGE: NUDGE, bowlDx: bowlDx, hasQ: hasQ, entInTunnel: entInTunnel }, DATA: { pigSprite: pigSprite, vetAdvice: vetAdvice, crossPig: crossPig, crossOdds: crossOdds, revealCarriers: revealCarriers, makePig: makePig, phenotype: phenotype, GENES: GENES, parentRec: parentRec }, Nurs: Nurs, Book: Book, Adopt: Adopt,
     ptr: function (type, x, y) { // pointeur logique (tests) : mêmes chemins que les vrais événements
       if (type === 'down') { Care.press(x, y); UI.press(x, y); } else if (type === 'move') Care.move(x, y); else if (Care.release(x, y)) { UI.pressed = null; UI.down = false; } else UI.release(x, y);
     },

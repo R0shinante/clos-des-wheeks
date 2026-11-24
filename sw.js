@@ -2,7 +2,7 @@
    La page est demandée au réseau d'abord (on a toujours la dernière version quand on est en ligne), puis, à défaut, prise dans la réserve.
    La partie n'est jamais touchée ici : elle vit dans le stockage du navigateur, pas dans cette réserve. */
 'use strict';
-const VERSION = '5f096a30';
+const VERSION = 'dea3cd87';
 const CACHE = 'clos-wheeks-' + VERSION;
 const KEY = new URL('index.html', self.registration.scope).href;
 const FILES = ['index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'maskable-512.png', 'apple-touch-icon.png', 'favicon-32.png'];
